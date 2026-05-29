@@ -1,8 +1,7 @@
 name: Build Android APK Manually
 
+# 删除了 push 监听，只保留 workflow_dispatch，彻底关闭自动打包
 on:
-  push:
-    branches: [ "main", "master" ]
   workflow_dispatch:
 
 jobs:
@@ -19,7 +18,6 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # 锁定 Gradle 8.5 版本，防止高版本不兼容
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
       with:
