@@ -22,11 +22,9 @@ jobs:
       with:
         gradle-version: '8.5'
 
-    # 【核心改变 1】：不再打包 Debug 版，改为打包 Release 正式版
     - name: Build Release APK
       run: gradle assembleRelease
 
-    # 【核心改变 2】：自动调用绝密保险箱里的密钥，为 APK 盖章签名
     - name: Sign APK
       uses: r0adkll/sign-android-release@v1
       id: sign_app
@@ -36,10 +34,10 @@ jobs:
         alias: myalias
         keyStorePassword: 123456
         keyPassword: 123456
+        buildToolsVersion: 34.0.0
 
-    # 提取最终签名完成的 APK 供你下载
     - name: Upload Official APK
       uses: actions/upload-artifact@v4
       with:
-        name: SmsAlarm-V1.2-Official
+        name: SmsAlarm-V1.4-Official
         path: ${{steps.sign_app.outputs.signedReleaseFile}}
