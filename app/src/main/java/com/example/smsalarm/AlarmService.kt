@@ -28,7 +28,7 @@ class AlarmService : Service() {
             "START_MONITOR" -> {
                 val notification = NotificationCompat.Builder(this, CHANNEL_ID)
                     .setContentTitle("智能短信强提醒运行中")
-                    .setContentText("已应用最新配置，拦截系统休眠中...")
+                    .setContentText("防护已生效，拦截系统休眠中...")
                     .setSmallIcon(android.R.drawable.ic_dialog_info)
                     .setOngoing(true)
                     .build()
@@ -43,46 +43,49 @@ class AlarmService : Service() {
     private fun executeStrongAlarm() {
         stopAlarmAndVibration() 
 
-        // 1. 获取休眠唤醒锁，防止黑屏状态下CPU休眠导致不出声
-        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SmsAlarm::WakeLock")
-        wakeLock?.acquire(10 * 60 * 1000L /*10 minutes*/)
+        // 关键修复：加入安全的唤醒锁逻辑 (依赖 Manifest 中的 WAKE_LOCK 权限)
+        try {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SmsAlarm::WakeLock")
+            wakeLock?.acquire(10 * 60 * 1000L /*10 mins*/)
+        } catch (e: Exception) { e.printStackTrace() }
 
         val sharedPrefs = getSharedPreferences("SmsAlarmConfig", Context.MODE_PRIVATE)
         val ringtoneStr = sharedPrefs.getString("ringtone_uri", "") ?: ""
         val volumePercent = sharedPrefs.getInt("volume_percent", 100)
         
-        val defaultUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+        var defaultUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+        if (defaultUri == null) defaultUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        
         val alarmUri = if (ringtoneStr.isEmpty()) defaultUri else Uri.parse(ringtoneStr)
 
         val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
 
-        // 2. 根据用户设置的百分比，计算并强制设定系统闹钟通道音量
-        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
-        val targetVolume = (maxVolume * (volumePercent / 100f)).toInt()
-        audioManager.setStreamVolume(AudioManager.STREAM_ALARM, targetVolume, 0)
+        // 强行突破勿扰并修改音量
+        try {
+            val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+            // 修复整数相除可能带来的 0 音量 Bug
+            val targetVolume = (maxVolume * (volumePercent.toFloat() / 100f)).toInt()
+            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, targetVolume, 0)
+        } catch (e: Exception) { e.printStackTrace() }
 
-        // 3. 播放声音 (带兜底防崩溃逻辑)
+        // 多重兜底播放逻辑，宁可播放难听的系统音，也绝不能不出声
         try {
             playAudio(alarmUri)
         } catch (e: Exception) {
-            e.printStackTrace()
-            // 如果用户选择的铃声因为杀后台失去了URI权限，立刻使用系统默认铃声兜底！
-            try {
-                playAudio(defaultUri)
-            } catch (fallbackEx: Exception) {
-                fallbackEx.printStackTrace()
-            }
+            try { playAudio(defaultUri) } catch (ex: Exception) { ex.printStackTrace() }
         }
 
-        // 4. 持续震动
-        val pattern = longArrayOf(0, 800, 400)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
-        } else {
-            vibrator?.vibrate(pattern, 0)
-        }
+        // 震动狂暴模式
+        try {
+            val pattern = longArrayOf(0, 800, 400)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
+            } else {
+                vibrator?.vibrate(pattern, 0)
+            }
+        } catch (e: Exception) { e.printStackTrace() }
     }
 
     private fun playAudio(uri: Uri) {
@@ -90,7 +93,7 @@ class AlarmService : Service() {
             setDataSource(this@AlarmService, uri)
             val audioAttributes = AudioAttributes.Builder()
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .setUsage(AudioAttributes.USAGE_ALARM) // 强力洞穿勿扰模式
+                .setUsage(AudioAttributes.USAGE_ALARM) // 核心：伪装成闹钟，无视静音和免打扰
                 .build()
             setAudioAttributes(audioAttributes)
             isLooping = true
@@ -100,14 +103,13 @@ class AlarmService : Service() {
     }
 
     private fun stopAlarmAndVibration() {
-        mediaPlayer?.stop()
-        mediaPlayer?.release()
-        mediaPlayer = null
-        vibrator?.cancel()
-        
-        if (wakeLock?.isHeld == true) {
-            wakeLock?.release()
-        }
+        try {
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+            mediaPlayer = null
+            vibrator?.cancel()
+            if (wakeLock?.isHeld == true) { wakeLock?.release() }
+        } catch (e: Exception) { e.printStackTrace() }
     }
 
     private fun createNotificationChannel() {
