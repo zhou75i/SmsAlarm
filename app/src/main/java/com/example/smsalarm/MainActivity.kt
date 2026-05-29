@@ -26,12 +26,15 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var sharedPrefs: SharedPreferences
     private var selectedRingtoneUri: String = ""
+    private var currentVolumePercent: Int = 100
     private val PERMISSION_CODE = 101
     private val RINGTONE_PICKER_CODE = 102
 
     private var isEditMode = false
     private lateinit var llKeywordContainer: LinearLayout
     private lateinit var checkBoxes: List<CheckBox>
+    private lateinit var sbVolume: SeekBar
+    private lateinit var tvVolumePercent: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,6 +42,8 @@ class MainActivity : AppCompatActivity() {
 
         sharedPrefs = getSharedPreferences("SmsAlarmConfig", Context.MODE_PRIVATE)
         llKeywordContainer = findViewById(R.id.llKeywordContainer)
+        sbVolume = findViewById(R.id.sbVolume)
+        tvVolumePercent = findViewById(R.id.tvVolumePercent)
         checkBoxes = listOf(
             findViewById(R.id.cbMon), findViewById(R.id.cbTue), findViewById(R.id.cbWed),
             findViewById(R.id.cbThu), findViewById(R.id.cbFri), findViewById(R.id.cbSat), findViewById(R.id.cbSun)
@@ -47,13 +52,25 @@ class MainActivity : AppCompatActivity() {
         setupCopyrightInfo()
         loadSavedConfig()
         setupButtons()
+        setupVolumeSlider()
         checkAndRequestPermissions()
-        
-        // 首次打开检测并引导关闭电池优化
         checkBatteryOptimization()
-        
-        // 每次完全打开软件，直接在后台刷活监控服务
         startMonitorService()
+    }
+
+    private fun setupVolumeSlider() {
+        sbVolume.progress = currentVolumePercent
+        tvVolumePercent.text = "${currentVolumePercent}%"
+        sbVolume.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                // 限制最低音量为 10%，防止误设为静音导致漏接警报
+                val finalProgress = if (progress < 10) 10 else progress
+                tvVolumePercent.text = "${finalProgress}%"
+                currentVolumePercent = finalProgress
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) { saveAllConfig() }
+        })
     }
 
     private fun setupButtons() {
@@ -78,46 +95,45 @@ class MainActivity : AppCompatActivity() {
             refreshKeywordListUI()
         }
 
-        btnAddKeyword.setOnClickListener {
-            addKeywordRow("", true)
-        }
-
+        btnAddKeyword.setOnClickListener { addKeywordRow("", true) }
         findViewById<Button>(R.id.btnEnableAll).setOnClickListener { setAllSwitches(true) }
         findViewById<Button>(R.id.btnDisableAll).setOnClickListener { setAllSwitches(false) }
 
         findViewById<Button>(R.id.btnSelectRingtone).setOnClickListener { openRingtonePicker() }
+        
+        // 试听功能
+        findViewById<Button>(R.id.btnTestRingtone).setOnClickListener {
+            saveAllConfig() // 先保存当前音量和配置
+            startService(Intent(this, AlarmService::class.java).apply { action = "TRIGGER_ALARM" })
+            Toast.makeText(this, "正在按照当前设定音量播放试听...", Toast.LENGTH_SHORT).show()
+        }
+
         findViewById<Button>(R.id.btnStopAlarm).setOnClickListener {
             startService(Intent(this, AlarmService::class.java).apply { action = "STOP_ALARM" })
             Toast.makeText(this, "警报已解除", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // 动态生成一行关键词控件
     private fun addKeywordRow(word: String, isEnabled: Boolean) {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 10, 0, 10) }
         }
-
         val etWord = EditText(this).apply {
             setText(word)
             hint = "输入关键词"
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             this.isEnabled = isEditMode
         }
-
         val switch = Switch(this).apply {
             isChecked = isEnabled
-            // 非编辑模式下也可以随时开关
-            setOnCheckedChangeListener { _, _ -> if (!isEditMode) saveAllConfig() } 
+            setOnCheckedChangeListener { _, _ -> if (!isEditMode) saveAllConfig() }
         }
-
         val btnDelete = Button(this).apply {
             text = "❌"
             visibility = if (isEditMode) View.VISIBLE else View.GONE
             setOnClickListener { llKeywordContainer.removeView(row) }
         }
-
         row.addView(etWord)
         row.addView(switch)
         row.addView(btnDelete)
@@ -150,12 +166,11 @@ class MainActivity : AppCompatActivity() {
                 addKeywordRow(obj.getString("word"), obj.getBoolean("enabled"))
             }
         } catch (e: Exception) { e.printStackTrace() }
-
-        // 如果为空，默认添加一个空行
         if (llKeywordContainer.childCount == 0) addKeywordRow("", true)
 
         selectedRingtoneUri = sharedPrefs.getString("ringtone_uri", "") ?: ""
-        findViewById<TextView>(R.id.tvRingtoneName).text = if (selectedRingtoneUri.isEmpty()) "当前: 系统默认" else "当前: 已选定"
+        currentVolumePercent = sharedPrefs.getInt("volume_percent", 100)
+        findViewById<TextView>(R.id.tvRingtoneName).text = if (selectedRingtoneUri.isEmpty()) "当前: 默认" else "当前: 已选定"
 
         for (i in checkBoxes.indices) { checkBoxes[i].isChecked = sharedPrefs.getBoolean("day_$i", true) }
     }
@@ -176,11 +191,11 @@ class MainActivity : AppCompatActivity() {
         val editor = sharedPrefs.edit()
         editor.putString("keywords_json", array.toString())
         editor.putString("ringtone_uri", selectedRingtoneUri)
+        editor.putInt("volume_percent", currentVolumePercent)
         for (i in checkBoxes.indices) { editor.putBoolean("day_$i", checkBoxes[i].isChecked) }
         editor.apply()
         
         startMonitorService()
-        Toast.makeText(this, "配置已生效", Toast.LENGTH_SHORT).show()
     }
 
     private fun startMonitorService() {
@@ -198,15 +213,11 @@ class MainActivity : AppCompatActivity() {
             if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
                 AlertDialog.Builder(this)
                     .setTitle("⚠️ 核心防杀后台设置")
-                    .setMessage("为了确保在息屏或半夜时仍能收到警报，请务必在下一步中将本应用设置为【无限制】使用电池！")
+                    .setMessage("为确保后台完美运行，请务必将本应用设置为【无限制】使用电池！")
                     .setPositiveButton("立即去设置") { _, _ ->
-                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                            data = Uri.parse("package:$packageName")
-                        }
-                        startActivity(intent)
+                        startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply { data = Uri.parse("package:$packageName") })
                     }
-                    .setCancelable(false)
-                    .show()
+                    .setCancelable(false).show()
             }
         }
     }
@@ -243,6 +254,12 @@ class MainActivity : AppCompatActivity() {
         if (requestCode == RINGTONE_PICKER_CODE && resultCode == Activity.RESULT_OK) {
             val uri = data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
             if (uri != null) {
+                // 尝试固化读取权限，防止杀后台后 URI 失效
+                try {
+                    contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                } catch (e: SecurityException) {
+                    // 有些系统铃声不支持持久化授权，忽略即可
+                }
                 selectedRingtoneUri = uri.toString()
                 findViewById<TextView>(R.id.tvRingtoneName).text = "当前: 已选定"
                 saveAllConfig()
