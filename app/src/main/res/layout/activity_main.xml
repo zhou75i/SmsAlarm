@@ -1,57 +1,72 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#F9F9F9">
+    android:layout_height="match_parent">
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="20dp">
+        android:layout_height="match_parent"
+        android:background="#F9F9F9">
 
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🚨 智能强提醒 V1.1" android:textSize="20sp" android:textStyle="bold" android:textColor="#333333" android:layout_marginBottom="16dp"/>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
 
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="8dp">
-            <Button android:id="@+id/btnEdit" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="✏️ 修改词库" android:backgroundTint="#FF9800"/>
-            <Button android:id="@+id/btnSave" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="💾 保存生效" android:backgroundTint="#4CAF50" android:layout_marginStart="8dp" android:visibility="gone"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🚨 智能强提醒 V1.1" android:textSize="20sp" android:textStyle="bold" android:textColor="#333333" android:layout_marginBottom="16dp"/>
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="8dp">
+                <Button android:id="@+id/btnEdit" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="✏️ 修改词库" android:backgroundTint="#FF9800"/>
+                <Button android:id="@+id/btnSave" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="💾 保存生效" android:backgroundTint="#4CAF50" android:layout_marginStart="8dp" android:visibility="gone"/>
+            </LinearLayout>
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="16dp">
+                <Button android:id="@+id/btnEnableAll" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="一键启用" android:textSize="12sp" android:backgroundTint="#2196F3"/>
+                <Button android:id="@+id/btnDisableAll" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="一键关闭" android:textSize="12sp" android:backgroundTint="#9E9E9E" android:layout_marginStart="8dp"/>
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/llKeywordContainer" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="#FFFFFF" android:padding="8dp" android:elevation="2dp"/>
+
+            <Button android:id="@+id/btnAddKeyword" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="+ 新增监控关键词" android:backgroundTint="#E0E0E0" android:textColor="#333333" android:layout_marginTop="8dp" android:layout_marginBottom="24dp" android:visibility="gone"/>
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🔊 音量与铃声配置" android:textStyle="bold" android:layout_marginBottom="8dp"/>
+            
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="8dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="强提醒音量:" android:textSize="14sp"/>
+                <SeekBar android:id="@+id/sbVolume" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:max="100" android:progress="100"/>
+                <TextView android:id="@+id/tvVolumePercent" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="100%" android:textSize="14sp" android:textColor="#2196F3" android:textStyle="bold"/>
+            </LinearLayout>
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="16dp">
+                <Button android:id="@+id/btnSelectRingtone" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="选铃声" android:textSize="12sp"/>
+                <Button android:id="@+id/btnTestRingtone" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🎵试听" android:textSize="12sp" android:backgroundTint="#00BCD4" android:layout_marginStart="4dp"/>
+                <TextView android:id="@+id/tvRingtoneName" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="当前: 默认" android:paddingStart="8dp" android:textSize="12sp" android:textColor="#666666"/>
+            </LinearLayout>
+
+            <GridLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:columnCount="4" android:layout_marginBottom="24dp">
+                <CheckBox android:id="@+id/cbMon" android:text="一"/>
+                <CheckBox android:id="@+id/cbTue" android:text="二"/>
+                <CheckBox android:id="@+id/cbWed" android:text="三"/>
+                <CheckBox android:id="@+id/cbThu" android:text="四"/>
+                <CheckBox android:id="@+id/cbFri" android:text="五"/>
+                <CheckBox android:id="@+id/cbSat" android:text="六"/>
+                <CheckBox android:id="@+id/cbSun" android:text="日"/>
+            </GridLayout>
+
+            <Button android:id="@+id/btnStopAlarm" android:layout_width="match_parent" android:layout_height="60dp" android:text="🛑 停止当前的响铃与震动" android:backgroundTint="#E53935" android:textColor="#FFFFFF" android:textSize="16sp" android:textStyle="bold"/>
+
+            <TextView android:id="@+id/tvCopyright" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:layout_marginTop="32dp" android:layout_marginBottom="16dp" android:textSize="12sp" android:textColor="#999999" android:autoLink="web" />
         </LinearLayout>
+    </ScrollView>
 
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="16dp">
-            <Button android:id="@+id/btnEnableAll" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="一键启用" android:textSize="12sp" android:backgroundTint="#2196F3"/>
-            <Button android:id="@+id/btnDisableAll" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="一键关闭" android:textSize="12sp" android:backgroundTint="#9E9E9E" android:layout_marginStart="8dp"/>
-        </LinearLayout>
+    <ImageView
+        android:id="@+id/ivSplash"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/splash"
+        android:scaleType="fitCenter"
+        android:background="#FFFFFF"
+        android:elevation="10dp"/>
 
-        <LinearLayout android:id="@+id/llKeywordContainer" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="#FFFFFF" android:padding="8dp" android:elevation="2dp"/>
-
-        <Button android:id="@+id/btnAddKeyword" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="+ 新增监控关键词" android:backgroundTint="#E0E0E0" android:textColor="#333333" android:layout_marginTop="8dp" android:layout_marginBottom="24dp" android:visibility="gone"/>
-
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🔊 音量与铃声配置" android:textStyle="bold" android:layout_marginBottom="8dp"/>
-        
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="8dp">
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="强提醒音量:" android:textSize="14sp"/>
-            <SeekBar android:id="@+id/sbVolume" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:max="100" android:progress="100"/>
-            <TextView android:id="@+id/tvVolumePercent" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="100%" android:textSize="14sp" android:textColor="#2196F3" android:textStyle="bold"/>
-        </LinearLayout>
-
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="16dp">
-            <Button android:id="@+id/btnSelectRingtone" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="选铃声" android:textSize="12sp"/>
-            <Button android:id="@+id/btnTestRingtone" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🎵试听" android:textSize="12sp" android:backgroundTint="#00BCD4" android:layout_marginStart="4dp"/>
-            <TextView android:id="@+id/tvRingtoneName" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="当前: 默认" android:paddingStart="8dp" android:textSize="12sp" android:textColor="#666666"/>
-        </LinearLayout>
-
-        <GridLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:columnCount="4" android:layout_marginBottom="24dp">
-            <CheckBox android:id="@+id/cbMon" android:text="一"/>
-            <CheckBox android:id="@+id/cbTue" android:text="二"/>
-            <CheckBox android:id="@+id/cbWed" android:text="三"/>
-            <CheckBox android:id="@+id/cbThu" android:text="四"/>
-            <CheckBox android:id="@+id/cbFri" android:text="五"/>
-            <CheckBox android:id="@+id/cbSat" android:text="六"/>
-            <CheckBox android:id="@+id/cbSun" android:text="日"/>
-        </GridLayout>
-
-        <Button android:id="@+id/btnStopAlarm" android:layout_width="match_parent" android:layout_height="60dp" android:text="🛑 停止当前的响铃与震动" android:backgroundTint="#E53935" android:textColor="#FFFFFF" android:textSize="16sp" android:textStyle="bold"/>
-
-        <TextView android:id="@+id/tvCopyright" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:layout_marginTop="32dp" android:layout_marginBottom="16dp" android:textSize="12sp" android:textColor="#999999" android:autoLink="web" />
-    </LinearLayout>
-</ScrollView>
+</FrameLayout>
