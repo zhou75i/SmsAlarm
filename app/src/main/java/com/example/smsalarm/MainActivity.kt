@@ -41,12 +41,20 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvVolumePercent: TextView
     private lateinit var btnTestRingtone: Button
 
-    // 独立控制试听的播放器
     private var previewPlayer: MediaPlayer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // --- 处理开屏启动图 ---
+        val ivSplash = findViewById<ImageView>(R.id.ivSplash)
+        ivSplash.postDelayed({
+            ivSplash.animate().alpha(0f).setDuration(600).withEndAction {
+                ivSplash.visibility = View.GONE
+            }.start()
+        }, 1500) // 显示 1.5 秒后淡出消失
+        // -------------------
 
         sharedPrefs = getSharedPreferences("SmsAlarmConfig", Context.MODE_PRIVATE)
         llKeywordContainer = findViewById(R.id.llKeywordContainer)
@@ -69,8 +77,6 @@ class MainActivity : AppCompatActivity() {
         if (!sharedPrefs.getBoolean("has_run_first_wizard", false)) {
             showAutoStartGuide()
         }
-        
-        // 如果是从后台警报弹窗点进来的，立刻显示停止对话框
         checkAlarmTrigger(intent)
     }
 
@@ -83,7 +89,7 @@ class MainActivity : AppCompatActivity() {
         if (intent?.getBooleanExtra("is_alarm_triggered", false) == true) {
             AlertDialog.Builder(this)
                 .setTitle("🚨 警报触发！")
-                .setMessage("已检测到指定的强提醒短信！")
+                .setMessage("已检测到指定的强提醒短信！点击下方按钮可解除响铃。")
                 .setPositiveButton("立即停止响铃") { _, _ ->
                     startService(Intent(this, AlarmService::class.java).apply { action = "STOP_ALARM" })
                     Toast.makeText(this, "警报已解除", Toast.LENGTH_SHORT).show()
@@ -102,8 +108,6 @@ class MainActivity : AppCompatActivity() {
                 val finalProgress = if (progress < 10) 10 else progress
                 tvVolumePercent.text = "${finalProgress}%"
                 currentVolumePercent = finalProgress
-                
-                // 实时改变试听音量
                 if (previewPlayer?.isPlaying == true) {
                     val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
                     val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
@@ -142,7 +146,6 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnDisableAll).setOnClickListener { setAllSwitches(false) }
         findViewById<Button>(R.id.btnSelectRingtone).setOnClickListener { openRingtonePicker() }
         
-        // 核心修复：独立控制的试听开关
         btnTestRingtone.setOnClickListener {
             if (previewPlayer?.isPlaying == true) {
                 stopPreview()
@@ -191,7 +194,7 @@ class MainActivity : AppCompatActivity() {
         stopPreview()
         super.onDestroy()
     }
-    
+
     private fun addKeywordRow(word: String, isEnabled: Boolean) {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -371,10 +374,7 @@ class MainActivity : AppCompatActivity() {
         if (requestCode == RINGTONE_PICKER_CODE && resultCode == Activity.RESULT_OK) {
             val uri = data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
             if (uri != null) {
-                // 核心修复：申请持久化权限，防止杀后台后失效
-                try {
-                    contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                } catch (e: Exception) { e.printStackTrace() }
+                try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Exception) { e.printStackTrace() }
                 selectedRingtoneUri = uri.toString()
                 findViewById<TextView>(R.id.tvRingtoneName).text = "当前: 已选定"
                 saveAllConfig()
