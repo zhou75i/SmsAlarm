@@ -11,8 +11,8 @@ android {
         applicationId "com.example.smsalarm"
         minSdk 24    // 最低支持到 Android 7.0
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.1"
     }
 
     compileOptions {
