@@ -16,6 +16,7 @@ class AlarmService : Service() {
     private var vibrator: Vibrator? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private val CHANNEL_ID = "SmsMonitorChannel"
+    private val ALARM_CHANNEL_ID = "AlarmPopupChannel"
     private val NOTIFICATION_ID = 8888
 
     override fun onCreate() {
@@ -43,12 +44,14 @@ class AlarmService : Service() {
     private fun executeStrongAlarm() {
         stopAlarmAndVibration() 
 
-        // 关键修复：加入安全的唤醒锁逻辑 (依赖 Manifest 中的 WAKE_LOCK 权限)
         try {
             val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SmsAlarm::WakeLock")
-            wakeLock?.acquire(10 * 60 * 1000L /*10 mins*/)
+            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP, "SmsAlarm::WakeLock")
+            wakeLock?.acquire(10 * 60 * 1000L)
         } catch (e: Exception) { e.printStackTrace() }
+
+        // 发送全屏强提醒弹窗
+        triggerFullScreenPopup()
 
         val sharedPrefs = getSharedPreferences("SmsAlarmConfig", Context.MODE_PRIVATE)
         val ringtoneStr = sharedPrefs.getString("ringtone_uri", "") ?: ""
@@ -62,22 +65,17 @@ class AlarmService : Service() {
         val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
 
-        // 强行突破勿扰并修改音量
         try {
             val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
-            // 修复整数相除可能带来的 0 音量 Bug
-            val targetVolume = (maxVolume * (volumePercent.toFloat() / 100f)).toInt()
-            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, targetVolume, 0)
+            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, (maxVolume * (volumePercent.toFloat() / 100f)).toInt(), 0)
         } catch (e: Exception) { e.printStackTrace() }
 
-        // 多重兜底播放逻辑，宁可播放难听的系统音，也绝不能不出声
         try {
             playAudio(alarmUri)
         } catch (e: Exception) {
             try { playAudio(defaultUri) } catch (ex: Exception) { ex.printStackTrace() }
         }
 
-        // 震动狂暴模式
         try {
             val pattern = longArrayOf(0, 800, 400)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -87,13 +85,35 @@ class AlarmService : Service() {
             }
         } catch (e: Exception) { e.printStackTrace() }
     }
+    
+    private fun triggerFullScreenPopup() {
+        val fullScreenIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            putExtra("is_alarm_triggered", true)
+        }
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
+        val pendingIntent = PendingIntent.getActivity(this, 0, fullScreenIntent, flags)
+
+        val alarmNotif = NotificationCompat.Builder(this, ALARM_CHANNEL_ID)
+            .setContentTitle("🚨 收到指定短信！")
+            .setContentText("点击此处关闭强提醒警报")
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setFullScreenIntent(pendingIntent, true)
+            .setAutoCancel(true)
+            .build()
+            
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(9999, alarmNotif)
+    }
 
     private fun playAudio(uri: Uri) {
         mediaPlayer = MediaPlayer().apply {
             setDataSource(this@AlarmService, uri)
             val audioAttributes = AudioAttributes.Builder()
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .setUsage(AudioAttributes.USAGE_ALARM) // 核心：伪装成闹钟，无视静音和免打扰
+                .setUsage(AudioAttributes.USAGE_ALARM)
                 .build()
             setAudioAttributes(audioAttributes)
             isLooping = true
@@ -109,13 +129,24 @@ class AlarmService : Service() {
             mediaPlayer = null
             vibrator?.cancel()
             if (wakeLock?.isHeld == true) { wakeLock?.release() }
+            
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.cancel(9999) // 消除弹窗通知
         } catch (e: Exception) { e.printStackTrace() }
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID, "短信强提醒保活服务", NotificationManager.IMPORTANCE_LOW)
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            val manager = getSystemService(NotificationManager::class.java)
+            
+            // 常驻服务通道
+            val channel = NotificationChannel(CHANNEL_ID, "短信强提醒保活", NotificationManager.IMPORTANCE_LOW)
+            manager.createNotificationChannel(channel)
+            
+            // 警报高优通道
+            val alarmChannel = NotificationChannel(ALARM_CHANNEL_ID, "警报强制弹窗", NotificationManager.IMPORTANCE_HIGH)
+            alarmChannel.setBypassDnd(true) // 申请绕过勿扰
+            manager.createNotificationChannel(alarmChannel)
         }
     }
 
