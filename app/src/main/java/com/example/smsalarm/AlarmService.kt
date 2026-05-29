@@ -16,7 +16,9 @@ class AlarmService : Service() {
     private var vibrator: Vibrator? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private val CHANNEL_ID = "SmsMonitorChannel"
-    private val ALARM_CHANNEL_ID = "AlarmPopupChannel"
+    
+    // 核心修复：更改了频道ID，强制系统重新赋予最高级别的通知和弹窗权限！
+    private val ALARM_CHANNEL_ID = "AlarmPopupChannel_V2" 
     private val NOTIFICATION_ID = 8888
 
     override fun onCreate() {
@@ -139,13 +141,12 @@ class AlarmService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(NotificationManager::class.java)
             
-            // 常驻服务通道
             val channel = NotificationChannel(CHANNEL_ID, "短信强提醒保活", NotificationManager.IMPORTANCE_LOW)
             manager.createNotificationChannel(channel)
             
-            // 警报高优通道
+            // 警报高优通道 (使用 V2 名字，强行重置系统权限)
             val alarmChannel = NotificationChannel(ALARM_CHANNEL_ID, "警报强制弹窗", NotificationManager.IMPORTANCE_HIGH)
-            alarmChannel.setBypassDnd(true) // 申请绕过勿扰
+            alarmChannel.setBypassDnd(true)
             manager.createNotificationChannel(alarmChannel)
         }
     }
