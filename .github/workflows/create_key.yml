@@ -1,0 +1,16 @@
+name: Generate Keystore One-Time
+on: workflow_dispatch
+jobs:
+  create-key:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate and Encode Keystore
+        run: |
+          # 1. 生成一个有效期 100 年的密钥 (密码统一设为 123456)
+          keytool -genkey -v -keystore myapp.jks -keyalg RSA -keysize 2048 -validity 36500 -alias myalias -dname "CN=SmsAlarm, O=Personal, C=CN" -storepass "123456" -keypass "123456"
+          
+          # 2. 将二进制文件转换为一整串纯文本，方便复制
+          echo "👇👇👇 请完整复制下方这大段乱码（不要漏掉开头结尾）👇👇👇"
+          base64 -w 0 myapp.jks
+          echo ""
+          echo "👆👆👆============================================👆👆👆"
