@@ -1,7 +1,6 @@
 package com.example.smsalarm
 
 import android.Manifest
-import android.app.Activity
 import android.app.AlertDialog
 import android.content.ComponentName
 import android.content.Context
@@ -25,6 +24,8 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.io.FileOutputStream
 
 class MainActivity : AppCompatActivity() {
 
@@ -40,21 +41,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sbVolume: SeekBar
     private lateinit var tvVolumePercent: TextView
     private lateinit var btnTestRingtone: Button
-
     private var previewPlayer: MediaPlayer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // --- 处理开屏启动图 ---
-        val ivSplash = findViewById<ImageView>(R.id.ivSplash)
-        ivSplash.postDelayed({
-            ivSplash.animate().alpha(0f).setDuration(600).withEndAction {
-                ivSplash.visibility = View.GONE
-            }.start()
-        }, 1500) // 显示 1.5 秒后淡出消失
-        // -------------------
+        // 启动图渐隐消失动画 (延迟 1 秒后开始淡出)
+        val splashImg = findViewById<ImageView>(R.id.splashImage)
+        splashImg.animate().alpha(0f).setDuration(800).setStartDelay(1000).withEndAction {
+            splashImg.visibility = View.GONE
+        }.start()
 
         sharedPrefs = getSharedPreferences("SmsAlarmConfig", Context.MODE_PRIVATE)
         llKeywordContainer = findViewById(R.id.llKeywordContainer)
@@ -77,6 +74,7 @@ class MainActivity : AppCompatActivity() {
         if (!sharedPrefs.getBoolean("has_run_first_wizard", false)) {
             showAutoStartGuide()
         }
+        
         checkAlarmTrigger(intent)
     }
 
@@ -89,7 +87,7 @@ class MainActivity : AppCompatActivity() {
         if (intent?.getBooleanExtra("is_alarm_triggered", false) == true) {
             AlertDialog.Builder(this)
                 .setTitle("🚨 警报触发！")
-                .setMessage("已检测到指定的强提醒短信！点击下方按钮可解除响铃。")
+                .setMessage("已检测到指定的强提醒短信！")
                 .setPositiveButton("立即停止响铃") { _, _ ->
                     startService(Intent(this, AlarmService::class.java).apply { action = "STOP_ALARM" })
                     Toast.makeText(this, "警报已解除", Toast.LENGTH_SHORT).show()
@@ -164,22 +162,30 @@ class MainActivity : AppCompatActivity() {
     private fun startPreview() {
         saveAllConfig()
         try {
-            val uriStr = if (selectedRingtoneUri.isEmpty()) RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM).toString() else selectedRingtoneUri
             val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
             val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
             audioManager.setStreamVolume(AudioManager.STREAM_ALARM, (maxVol * (currentVolumePercent / 100f)).toInt(), 0)
 
+            // 读取刚才拷贝进私有目录的铃声
+            val targetUri = if (selectedRingtoneUri.startsWith("/")) {
+                Uri.fromFile(File(selectedRingtoneUri))
+            } else if (selectedRingtoneUri.isNotEmpty()) {
+                Uri.parse(selectedRingtoneUri)
+            } else {
+                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            }
+
             previewPlayer = MediaPlayer().apply {
-                setDataSource(this@MainActivity, Uri.parse(uriStr))
+                setDataSource(this@MainActivity, targetUri)
                 setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
                 isLooping = true
                 prepare()
                 start()
             }
-            btnTestRingtone.text = "⏹停止试听"
+            btnTestRingtone.text = "⏹停止"
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(this, "该铃声已失效或无权限读取，请重新选择", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "铃声读取失败，请重新选择", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -251,7 +257,7 @@ class MainActivity : AppCompatActivity() {
 
         selectedRingtoneUri = sharedPrefs.getString("ringtone_uri", "") ?: ""
         currentVolumePercent = sharedPrefs.getInt("volume_percent", 100)
-        findViewById<TextView>(R.id.tvRingtoneName).text = if (selectedRingtoneUri.isEmpty()) "当前: 默认" else "当前: 已选定"
+        findViewById<TextView>(R.id.tvRingtoneName).text = if (selectedRingtoneUri.isEmpty()) "当前: 默认" else "当前: 已私有化保存"
         for (i in checkBoxes.indices) { checkBoxes[i].isChecked = sharedPrefs.getBoolean("day_$i", true) }
     }
 
@@ -289,7 +295,7 @@ class MainActivity : AppCompatActivity() {
     private fun showAutoStartGuide() {
         AlertDialog.Builder(this)
             .setTitle("🚀 第1步：开启自启动 (极其重要)")
-            .setMessage("为了防止软件在后台被系统杀死导致收不到警报，请在稍后弹出的系统界面中，允许本应用【自启动】及【后台运行】。")
+            .setMessage("为了防止后台被杀收不到警报，请在稍后的系统中允许本应用【自启动】及【后台运行】。")
             .setPositiveButton("立即去设置") { _, _ ->
                 jumpToAutoStartSettings()
                 showBatteryOptimizationGuide()
@@ -364,20 +370,32 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
             putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
             putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "选择警报铃声")
-            putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, Uri.parse(selectedRingtoneUri))
         }
         startActivityForResult(intent, RINGTONE_PICKER_CODE)
     }
 
+    // 核心修复：将外部铃声强行拷贝进 App 私有目录，永不失效！
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == RINGTONE_PICKER_CODE && resultCode == Activity.RESULT_OK) {
             val uri = data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
             if (uri != null) {
-                try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Exception) { e.printStackTrace() }
-                selectedRingtoneUri = uri.toString()
-                findViewById<TextView>(R.id.tvRingtoneName).text = "当前: 已选定"
-                saveAllConfig()
+                try {
+                    val inputStream = contentResolver.openInputStream(uri)
+                    if (inputStream != null) {
+                        val outFile = File(filesDir, "custom_ringtone.audio")
+                        val outputStream = FileOutputStream(outFile)
+                        inputStream.copyTo(outputStream)
+                        inputStream.close()
+                        outputStream.close()
+                        selectedRingtoneUri = outFile.absolutePath // 保存私有文件绝对路径
+                        findViewById<TextView>(R.id.tvRingtoneName).text = "当前: 已私有化保存"
+                        saveAllConfig()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    Toast.makeText(this, "铃声保存失败", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
