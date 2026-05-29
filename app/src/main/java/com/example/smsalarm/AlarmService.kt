@@ -3,6 +3,7 @@ package com.example.smsalarm
 import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.RingtoneManager
@@ -24,57 +25,51 @@ class AlarmService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             "START_MONITOR" -> {
-                // 变成前台服务，实现系统底层级保活
                 val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                    .setContentTitle("智能短信强提醒正在运行")
-                    .setContentText("短信策略监控防护中，请保持此常驻状态")
-                    .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                    .setContentTitle("智能短信强提醒运行中")
+                    .setContentText("已应用最新配置，拦截系统休眠中...")
+                    .setSmallIcon(android.R.drawable.ic_dialog_info)
                     .setOngoing(true)
                     .build()
                 startForeground(NOTIFICATION_ID, notification)
             }
-            "TRIGGER_ALARM" -> {
-                executeStrongAlarm()
-            }
-            "STOP_ALARM" -> {
-                stopAlarmAndVibration()
-            }
+            "TRIGGER_ALARM" -> executeStrongAlarm()
+            "STOP_ALARM" -> stopAlarmAndVibration()
         }
-        return START_STICKY // 被杀后自动重启
+        return START_STICKY 
     }
 
     private fun executeStrongAlarm() {
-        stopAlarmAndVibration() // 先清理可能正在响的警报
+        stopAlarmAndVibration() 
 
         val sharedPrefs = getSharedPreferences("SmsAlarmConfig", Context.MODE_PRIVATE)
         val ringtoneStr = sharedPrefs.getString("ringtone_uri", "") ?: ""
-        
-        val alarmUri = if (ringtoneStr.isEmpty()) {
-            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-        } else {
-            Uri.parse(ringtoneStr)
-        }
+        val alarmUri = if (ringtoneStr.isEmpty()) RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM) else Uri.parse(ringtoneStr)
 
         val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
 
-        // 强制把闹钟通道音量直接拉满
+        // 强制音量拉满
         val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
         audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
 
         try {
             mediaPlayer = MediaPlayer().apply {
                 setDataSource(this@AlarmService, alarmUri)
-                setAudioStreamType(AudioManager.STREAM_ALARM) // 核心：无视静音的闹钟流
+                
+                // 核心：强力穿透勿扰模式的音频属性设置
+                val audioAttributes = AudioAttributes.Builder()
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setUsage(AudioAttributes.USAGE_ALARM) // 伪装成闹钟，无视免打扰
+                    .build()
+                setAudioAttributes(audioAttributes)
+                
                 isLooping = true
                 prepare()
                 start()
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        } catch (e: Exception) { e.printStackTrace() }
 
-        // 持续急促震动
         val pattern = longArrayOf(0, 800, 400)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
@@ -93,8 +88,7 @@ class AlarmService : Service() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(CHANNEL_ID, "短信强提醒保活服务", NotificationManager.IMPORTANCE_LOW)
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }
 
