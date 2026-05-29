@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F9F9F9">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⚙️ 强提醒核心配置"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#333333"
+            android:layout_marginBottom="16dp"/>
+
+        <EditText
+            android:id="@+id/etKeyword"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="多个词用逗号隔开（如: 验证码,紧急,老板）"
+            android:background="#FFFFFF"
+            android:padding="14dp"
+            android:elevation="2dp"
+            android:layout_marginBottom="16dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp">
+            <Button
+                android:id="@+id/btnSelectRingtone"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="选择提醒铃声" />
+            <TextView
+                android:id="@+id/tvRingtoneName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="当前：系统默认闹钟"
+                android:paddingStart="12dp"
+                android:textColor="#666666"/>
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📅 选择生效周期"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="12dp">
+            <Button android:id="@+id/btnPresetEveryday" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="每天" android:textSize="12sp"/>
+            <Button android:id="@+id/btnPresetWorkday" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="工作日" android:textSize="12sp" android:layout_marginHorizontal="4dp"/>
+            <Button android:id="@+id/btnPresetWeekend" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="周末" android:textSize="12sp"/>
+        </LinearLayout>
+
+        <GridLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:columnCount="4"
+            android:layout_marginBottom="24dp">
+            <CheckBox android:id="@+id/cbMon" android:text="周一"/>
+            <CheckBox android:id="@+id/cbTue" android:text="周二"/>
+            <CheckBox android:id="@+id/cbWed" android:text="周三"/>
+            <CheckBox android:id="@+id/cbThu" android:text="周四"/>
+            <CheckBox android:id="@+id/cbFri" android:text="周五"/>
+            <CheckBox android:id="@+id/cbSat" android:text="周六"/>
+            <CheckBox android:id="@+id/cbSun" android:text="周日"/>
+        </GridLayout>
+
+        <Button
+            android:id="@+id/btnSaveConfig"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="💾 保存配置并激活后台防护"
+            android:backgroundTint="#4CAF50"
+            android:textColor="#FFFFFF"
+            android:layout_marginBottom="32dp"/>
+
+        <Button
+            android:id="@+id/btnStopAlarm"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:text="🛑 停止当前的响铃与震动"
+            android:backgroundTint="#E53935"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"/>
+
+        <TextView
+            android:id="@+id/tvCopyright"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:layout_marginTop="32dp"
+            android:layout_marginBottom="16dp"
+            android:textSize="12sp"
+            android:textColor="#999999"
+            android:autoLink="web" />
+
+    </LinearLayout>
+</ScrollView>
