@@ -19,11 +19,12 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # 使用官方的 Gradle 环境配置动作（替代本地的 gradlew）
+    # 锁定 Gradle 8.5 版本，防止高版本不兼容
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: '8.5'
 
-    # 注意：这里直接用 gradle 命令，而不是 ./gradlew
     - name: Build Debug APK
       run: gradle assembleDebug
 
