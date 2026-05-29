@@ -2,6 +2,7 @@ package com.example.smsalarm
 
 import android.Manifest
 import android.app.AlertDialog
+import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
