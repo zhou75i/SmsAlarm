@@ -25,19 +25,26 @@ jobs:
     - name: Build Release APK
       run: gradle assembleRelease
 
-    - name: Sign APK
-      uses: r0adkll/sign-android-release@v1
-      id: sign_app
-      with:
-        releaseDirectory: app/build/outputs/apk/release
-        signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
-        alias: myalias
-        keyStorePassword: 123456
-        keyPassword: 123456
-        buildToolsVersion: 34.0.0
+    # 【核心改变】：抛弃废弃插件，直接调用安卓官方原生工具手动签名！极其稳定！
+    - name: Sign APK Natively
+      env:
+        KEYSTORE: ${{ secrets.KEYSTORE_BASE64 }}
+      run: |
+        # 1. 从保险箱还原你的数字身份证 (Keystore)
+        echo "$KEYSTORE" | base64 --decode > myapp.jks
+        
+        # 2. 自动寻找系统里最新版本的 Android Build Tools
+        BUILD_TOOL=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
+        
+        # 3. 对齐 APK 文件（安卓系统强制要求的高级内存优化步骤）
+        $BUILD_TOOL/zipalign -v -p 4 app/build/outputs/apk/release/app-release-unsigned.apk app-release-aligned.apk
+        
+        # 4. 使用你的身份证为 APK 盖章正式签名
+        $BUILD_TOOL/apksigner sign --ks myapp.jks --ks-pass pass:123456 --ks-key-alias myalias --key-pass pass:123456 --out app-release-signed.apk app-release-aligned.apk
 
+    # 将签好名的最终成品提取出来供你下载
     - name: Upload Official APK
       uses: actions/upload-artifact@v4
       with:
         name: SmsAlarm-V1.4-Official
-        path: ${{steps.sign_app.outputs.signedReleaseFile}}
+        path: app-release-signed.apk
