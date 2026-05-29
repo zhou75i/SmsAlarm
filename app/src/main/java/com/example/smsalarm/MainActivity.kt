@@ -3,6 +3,7 @@ package com.example.smsalarm
 import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -53,9 +54,70 @@ class MainActivity : AppCompatActivity() {
         loadSavedConfig()
         setupButtons()
         setupVolumeSlider()
+        
         checkAndRequestPermissions()
-        checkBatteryOptimization()
         startMonitorService()
+        
+        // 首次运行连环引导向导：先跳自启动，再跳电池无限制
+        if (!sharedPrefs.getBoolean("has_run_first_wizard", false)) {
+            showAutoStartGuide()
+        }
+    }
+
+    private fun showAutoStartGuide() {
+        AlertDialog.Builder(this)
+            .setTitle("🚀 第1步：开启自启动 (极其重要)")
+            .setMessage("为了防止软件在后台被系统杀死导致收不到警报，请在稍后弹出的系统界面中，允许本应用【自启动】及【后台运行】。")
+            .setPositiveButton("立即去设置") { _, _ ->
+                jumpToAutoStartSettings()
+                showBatteryOptimizationGuide() // 跳转回来后引导第二步
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun jumpToAutoStartSettings() {
+        try {
+            val intent = Intent()
+            val manufacturer = Build.MANUFACTURER.lowercase()
+            when {
+                manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || manufacturer.contains("poco") -> {
+                    intent.component = ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")
+                }
+                manufacturer.contains("huawei") || manufacturer.contains("honor") -> {
+                    intent.component = ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity")
+                }
+                manufacturer.contains("oppo") || manufacturer.contains("realme") || manufacturer.contains("oneplus") -> {
+                    intent.component = ComponentName("com.coloros.safecenter", "com.coloros.safecenter.startupapp.StartupAppListActivity")
+                }
+                manufacturer.contains("vivo") || manufacturer.contains("iqoo") -> {
+                    intent.component = ComponentName("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity")
+                }
+                else -> {
+                    intent.action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+                    intent.data = Uri.parse("package:$packageName")
+                }
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+        }
+    }
+
+    private fun showBatteryOptimizationGuide() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+            if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+                AlertDialog.Builder(this)
+                    .setTitle("🔋 第2步：解除电池优化")
+                    .setMessage("最后一步！请将本应用的电池策略设置为【无限制】或【不优化】。")
+                    .setPositiveButton("立即去设置") { _, _ ->
+                        sharedPrefs.edit().putBoolean("has_run_first_wizard", true).apply()
+                        startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply { data = Uri.parse("package:$packageName") })
+                    }
+                    .setCancelable(false).show()
+            }
+        }
     }
 
     private fun setupVolumeSlider() {
@@ -63,7 +125,6 @@ class MainActivity : AppCompatActivity() {
         tvVolumePercent.text = "${currentVolumePercent}%"
         sbVolume.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                // 限制最低音量为 10%，防止误设为静音导致漏接警报
                 val finalProgress = if (progress < 10) 10 else progress
                 tvVolumePercent.text = "${finalProgress}%"
                 currentVolumePercent = finalProgress
@@ -98,14 +159,13 @@ class MainActivity : AppCompatActivity() {
         btnAddKeyword.setOnClickListener { addKeywordRow("", true) }
         findViewById<Button>(R.id.btnEnableAll).setOnClickListener { setAllSwitches(true) }
         findViewById<Button>(R.id.btnDisableAll).setOnClickListener { setAllSwitches(false) }
-
         findViewById<Button>(R.id.btnSelectRingtone).setOnClickListener { openRingtonePicker() }
         
-        // 试听功能
+        // 修复试听功能
         findViewById<Button>(R.id.btnTestRingtone).setOnClickListener {
-            saveAllConfig() // 先保存当前音量和配置
+            saveAllConfig() 
             startService(Intent(this, AlarmService::class.java).apply { action = "TRIGGER_ALARM" })
-            Toast.makeText(this, "正在按照当前设定音量播放试听...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "正在测试警报...", Toast.LENGTH_SHORT).show()
         }
 
         findViewById<Button>(R.id.btnStopAlarm).setOnClickListener {
@@ -171,7 +231,6 @@ class MainActivity : AppCompatActivity() {
         selectedRingtoneUri = sharedPrefs.getString("ringtone_uri", "") ?: ""
         currentVolumePercent = sharedPrefs.getInt("volume_percent", 100)
         findViewById<TextView>(R.id.tvRingtoneName).text = if (selectedRingtoneUri.isEmpty()) "当前: 默认" else "当前: 已选定"
-
         for (i in checkBoxes.indices) { checkBoxes[i].isChecked = sharedPrefs.getBoolean("day_$i", true) }
     }
 
@@ -194,31 +253,15 @@ class MainActivity : AppCompatActivity() {
         editor.putInt("volume_percent", currentVolumePercent)
         for (i in checkBoxes.indices) { editor.putBoolean("day_$i", checkBoxes[i].isChecked) }
         editor.apply()
-        
         startMonitorService()
     }
 
     private fun startMonitorService() {
         val serviceIntent = Intent(this, AlarmService::class.java).apply { action = "START_MONITOR" }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent)
+            try { startForegroundService(serviceIntent) } catch (e: Exception) {}
         } else {
             startService(serviceIntent)
-        }
-    }
-
-    private fun checkBatteryOptimization() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-            if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
-                AlertDialog.Builder(this)
-                    .setTitle("⚠️ 核心防杀后台设置")
-                    .setMessage("为确保后台完美运行，请务必将本应用设置为【无限制】使用电池！")
-                    .setPositiveButton("立即去设置") { _, _ ->
-                        startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply { data = Uri.parse("package:$packageName") })
-                    }
-                    .setCancelable(false).show()
-            }
         }
     }
 
@@ -230,7 +273,7 @@ class MainActivity : AppCompatActivity() {
             val p3 = Base64.decode("R2l0aHVi5byA5rqQ5Zyw5Z2A77ya", Base64.DEFAULT)
             val p4 = Base64.decode("aHR0cHM6Ly9naXRodWIuY29tL3pob3U3NWkvU21zQWxhcm0v", Base64.DEFAULT)
             tvCopyright.text = String(p1) + String(p2) + String(p3) + String(p4)
-        } catch (e: Exception) { e.printStackTrace() }
+        } catch (e: Exception) {}
     }
 
     private fun checkAndRequestPermissions() {
@@ -254,12 +297,7 @@ class MainActivity : AppCompatActivity() {
         if (requestCode == RINGTONE_PICKER_CODE && resultCode == Activity.RESULT_OK) {
             val uri = data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
             if (uri != null) {
-                // 尝试固化读取权限，防止杀后台后 URI 失效
-                try {
-                    contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                } catch (e: SecurityException) {
-                    // 有些系统铃声不支持持久化授权，忽略即可
-                }
+                try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Exception) {}
                 selectedRingtoneUri = uri.toString()
                 findViewById<TextView>(R.id.tvRingtoneName).text = "当前: 已选定"
                 saveAllConfig()
